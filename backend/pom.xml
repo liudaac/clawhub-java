@@ -69,6 +69,13 @@
             <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
         
+        <!-- Rate Limiting -->
+        <dependency>
+            <groupId>com.github.vladimir-bukhtoyarov</groupId>
+            <artifactId>bucket4j-core</artifactId>
+            <version>8.1.0</version>
+        </dependency>
+        
         <!-- Database -->
         <dependency>
             <groupId>org.postgresql</groupId>
