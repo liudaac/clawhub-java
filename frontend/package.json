@@ -1,0 +1,32 @@
+{
+  "name": "clawhub-frontend-vue",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "@nuxtjs/color-mode": "^3.3.2",
+    "@pinia/nuxt": "^0.5.1",
+    "@vueuse/nuxt": "^10.7.0",
+    "@milkdown/core": "^7.3.0",
+    "@milkdown/preset-commonmark": "^7.3.0",
+    "@milkdown/theme-nord": "^7.3.0",
+    "@milkdown/vue": "^7.3.0",
+    "highlight.js": "^11.9.0",
+    "nuxt": "^3.8.0",
+    "pinia": "^2.1.7",
+    "vue": "^3.3.8",
+    "vue-router": "^4.2.5"
+  },
+  "devDependencies": {
+    "@nuxt/devtools": "latest",
+    "@nuxtjs/tailwindcss": "^6.10.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}
