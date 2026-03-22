@@ -1,0 +1,100 @@
+# ClawHub Java 版增强配置
+# 复制到 application.yml 中使用
+
+spring:
+  # 外部API配置
+  webflux:
+    client:
+      connect-timeout: 30s
+      response-timeout: 60s
+
+# 安全扫描配置
+virustotal:
+  api:
+    key: ${VIRUSTOTAL_API_KEY:}
+    url: https://www.virustotal.com/api/v3
+  enabled: ${VIRUSTOTAL_ENABLED:false}
+
+openai:
+  api:
+    key: ${OPENAI_API_KEY:}
+    url: https://api.openai.com/v1
+  model: ${OPENAI_MODEL:gpt-5-mini}
+
+llm:
+  security:
+    enabled: ${LLM_SECURITY_ENABLED:false}
+
+comment:
+  moderation:
+    enabled: ${COMMENT_MODERATION_ENABLED:false}
+
+# GitHub集成配置
+github:
+  api:
+    token: ${GITHUB_API_TOKEN:}
+  backup:
+    enabled: ${GITHUB_BACKUP_ENABLED:false}
+    repo: ${GITHUB_BACKUP_REPO:owner/repo}
+
+# Resilience4j配置
+resilience4j:
+  circuitbreaker:
+    instances:
+      virustotal:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 60s
+        failureRateThreshold: 50
+        eventConsumerBufferSize: 10
+      openai:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 60s
+        failureRateThreshold: 50
+      github:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 120s
+        failureRateThreshold: 50
+  retry:
+    instances:
+      virustotal:
+        maxAttempts: 3
+        waitDuration: 2s
+        exponentialBackoffMultiplier: 2
+      openai:
+        maxAttempts: 3
+        waitDuration: 2s
+        exponentialBackoffMultiplier: 2
+      github:
+        maxAttempts: 3
+        waitDuration: 5s
+        exponentialBackoffMultiplier: 2
+
+# 应用配置
+app:
+  security:
+    # 自动隐藏评论的举报阈值
+    auto-hide-threshold: 4
+    # 每用户最大活跃举报数
+    max-active-reports-per-user: 5
+  transfer:
+    # 转移请求过期天数
+    expiry-days: 7
+    # 最大待处理传出请求
+    max-pending-outgoing: 10
+    # 最大待处理传入请求
+    max-pending-incoming: 10
+  backup:
+    # 每小时备份的技能数
+    batch-size: 100
