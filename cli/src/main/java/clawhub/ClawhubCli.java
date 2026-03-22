@@ -19,7 +19,17 @@ import picocli.CommandLine.Spec;
         InstallCommand.class,
         ListCommand.class,
         PublishCommand.class,
-        SyncCommand.class
+        SyncCommand.class,
+        UpdateCommand.class,
+        UninstallCommand.class,
+        DeleteCommand.class,
+        HideCommand.class,
+        UnhideCommand.class,
+        UndeleteCommand.class,
+        InspectCommand.class,
+        TransferCommand.class,
+        StarCommand.class,
+        UnstarCommand.class
     }
 )
 public class ClawhubCli implements Runnable {
