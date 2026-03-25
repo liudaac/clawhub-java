@@ -12,38 +12,28 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "users")
+@Table(name = "publisher_members")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class User {
+public class PublisherMember {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "github_id", nullable = false, unique = true)
-    private Long githubId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "publisher_id", nullable = false)
+    private Publisher publisher;
 
-    @Column(nullable = false, unique = true)
-    private String handle;
-
-    private String name;
-
-    @Column(columnDefinition = "TEXT")
-    private String bio;
-
-    @Column(name = "avatar_url", length = 1024)
-    private String avatarUrl;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    @Builder.Default
-    private Role role = Role.USER;
-
-    @Column(name = "github_created_at")
-    private Instant githubCreatedAt;
+    private Role role;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -53,18 +43,19 @@ public class User {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    @Column(name = "personal_publisher_id")
-    private UUID personalPublisherId;
-
     public enum Role {
-        ADMIN, MODERATOR, USER
+        OWNER, ADMIN, PUBLISHER
+    }
+
+    public boolean isOwner() {
+        return role == Role.OWNER;
     }
 
     public boolean isAdmin() {
-        return role == Role.ADMIN;
+        return role == Role.ADMIN || role == Role.OWNER;
     }
 
-    public boolean isModerator() {
-        return role == Role.MODERATOR || role == Role.ADMIN;
+    public boolean isPublisher() {
+        return role == Role.PUBLISHER || role == Role.ADMIN || role == Role.OWNER;
     }
 }

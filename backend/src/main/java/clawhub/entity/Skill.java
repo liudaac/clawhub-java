@@ -116,6 +116,9 @@ public class Skill {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "owner_publisher_id")
+    private UUID ownerPublisherId;
+
     public enum ModerationStatus {
         ACTIVE, HIDDEN, REMOVED
     }

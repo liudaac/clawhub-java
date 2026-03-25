@@ -202,9 +202,70 @@ public class LlmSecurityService {
         return text.substring(0, maxLen) + "...";
     }
 
+    /**
+     * 对 Package 进行安全评估
+     */
+    @CircuitBreaker(name = "openai", fallbackMethod = "evaluatePackageFallback")
+    @Retry(name = "openai")
+    public Optional<SkillVersion.LlmSecurityAnalysis> evaluatePackage(String context, String family) {
+        if (!enabled || apiKey.isEmpty()) {
+            log.debug("LLM security evaluation is disabled or API key not configured");
+            return Optional.empty();
+        }
+
+        try {
+            log.info("Evaluating package security for family: {}", family);
+
+            String systemPrompt = PACKAGE_SECURITY_EVALUATOR_SYSTEM_PROMPT;
+            String userPrompt = context;
+
+            Map<String, Object> request = Map.of(
+                    "model", model,
+                    "messages", List.of(
+                            Map.of("role", "system", "content", systemPrompt),
+                            Map.of("role", "user", "content", userPrompt)
+                    ),
+                    "max_tokens", MAX_OUTPUT_TOKENS,
+                    "temperature", 0.1,
+                    "response_format", Map.of("type", "json_object")
+            );
+
+            var response = getClient().post()
+                    .uri("/chat/completions")
+                    .bodyValue(request)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .timeout(Duration.ofSeconds(120))
+                    .block();
+
+            if (response == null) {
+                return Optional.empty();
+            }
+
+            List<Map<String, Object>> choices = (List<Map<String, Object>>) response.get("choices");
+            if (choices == null || choices.isEmpty()) {
+                return Optional.empty();
+            }
+
+            Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
+            String content = (String) message.get("content");
+
+            return parseEvalResponse(content);
+
+        } catch (Exception e) {
+            log.error("Failed to evaluate package security", e);
+            throw e;
+        }
+    }
+
     // Fallback
     private Optional<SkillVersion.LlmSecurityAnalysis> evaluateFallback(SkillEvalContext context, Exception ex) {
         log.warn("LLM security evaluation fallback triggered: {}", ex.getMessage());
+        return Optional.empty();
+    }
+
+    private Optional<SkillVersion.LlmSecurityAnalysis> evaluatePackageFallback(String context, String family, Exception ex) {
+        log.warn("Package security evaluation fallback triggered: {}", ex.getMessage());
         return Optional.empty();
     }
 
@@ -242,6 +303,45 @@ Dimensions to evaluate:
 3. **permission_proportion** - Are requested permissions appropriate for the functionality?
 4. **dependency_appropriateness** - Are dependencies justified and from trusted sources?
 5. **install_safety** - Does the install process follow safe practices?
+
+## Response format
+
+Return JSON with this structure:
+{
+  "verdict": "benign|suspicious|malicious",
+  "confidence": "high|medium|low",
+  "summary": "Brief summary of findings",
+  "guidance": "What users should know",
+  "dimensions": [
+    {"name": "name_accuracy", "label": "Name Accuracy", "rating": "1-5", "detail": "..."}
+  ],
+  "findings": [
+    {"code": "FINDING_CODE", "severity": "info|warn|critical", "file": "...", "line": 1, "message": "...", "evidence": "..."}
+  ]
+}
+
+Be thorough but concise. Focus on actual security concerns, not style preferences.
+""";
+
+    // System prompt for package security evaluation
+    private static final String PACKAGE_SECURITY_EVALUATOR_SYSTEM_PROMPT = """
+You are a security evaluator for OpenClaw packages. Packages can be skills, code plugins, or bundle plugins.
+
+You are not a malware classifier. You are an incoherence detector.
+
+A package is a bundle of: code files, metadata, declared dependencies, and optional install scripts.
+
+## How to evaluate
+
+Rate each dimension from 1-5 and provide detailed findings.
+
+Dimensions to evaluate:
+1. **name_accuracy** - Does the name match what the package actually does?
+2. **description_honesty** - Does the description accurately describe capabilities?
+3. **permission_proportion** - Are requested permissions appropriate for the functionality?
+4. **dependency_appropriateness** - Are dependencies justified and from trusted sources?
+5. **install_safety** - Does the install process follow safe practices?
+6. **code_quality** - Is the code well-structured and free of obvious security issues?
 
 ## Response format
 
