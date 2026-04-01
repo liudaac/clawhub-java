@@ -31,6 +31,7 @@ public class PackageSecurityScanService {
     private final VirusTotalService virusTotalService;
     private final LlmSecurityService llmSecurityService;
     private final StorageService storageService;
+    private final PackageSecurityService packageSecurityService;
 
     // Static scan patterns
     private static final Pattern RAW_IP_URL_PATTERN = Pattern.compile(
@@ -108,20 +109,32 @@ public class PackageSecurityScanService {
                     .build();
             release.setStaticScan(staticScan);
 
-            // 2. VirusTotal 扫描
-            Optional<PackageRelease.VirusTotalAnalysis> vtAnalysis = performVirusTotalScan(release);
-            release.setVtAnalysis(vtAnalysis.orElse(null));
+            // 2. VirusTotal 扫描 - 使用新的调度方法（带初始延迟）
+            virusTotalService.schedulePackageScan(release.getId(), pkg.getId());
+            // 注意：VT扫描现在是异步的，不会立即返回结果
+            // 这里我们设置一个临时的 PENDING 状态
+            release.setVtAnalysis(null); // 将在异步扫描完成后更新
 
             // 3. LLM 安全评估
             Optional<PackageRelease.LlmSecurityAnalysis> llmAnalysis = performLlmEvaluation(release, staticFindings);
             release.setLlmAnalysis(llmAnalysis.orElse(null));
 
-            // 4. 合并结果生成最终裁决
-            String verdict = mergeVerdicts(staticFindings, vtAnalysis, llmAnalysis);
+            // 4. 使用新的集中化状态解析服务
+            // 更新发布版本的数据
+            release.setStaticScan(staticScan);
+            release.setVtAnalysis(vtAnalysis.orElse(null));
+            release.setLlmAnalysis(llmAnalysis.orElse(null));
+
+            // 使用 PackageSecurityService 解析最终状态
+            PackageSecurityService.ScanStatus finalStatus = 
+                packageSecurityService.resolvePackageReleaseScanStatus(release);
 
             // Update package scan status
-            pkg.setScanStatus(mapVerdictToScanStatus(verdict));
+            pkg.setScanStatus(mapServiceStatusToEntityStatus(finalStatus));
             packageRepository.save(pkg);
+
+            // 同步验证状态
+            packageSecurityService.syncLatestPackageVerification(release);
 
             // Save release
             PackageRelease saved = releaseRepository.save(release);
@@ -320,6 +333,19 @@ public class PackageSecurityScanService {
             case "suspicious" -> Package.ScanStatus.SUSPICIOUS;
             case "clean" -> Package.ScanStatus.CLEAN;
             default -> Package.ScanStatus.NOT_RUN;
+        };
+    }
+
+    /**
+     * 映射服务层 ScanStatus 到实体层 ScanStatus
+     */
+    private Package.ScanStatus mapServiceStatusToEntityStatus(PackageSecurityService.ScanStatus status) {
+        return switch (status) {
+            case CLEAN -> Package.ScanStatus.CLEAN;
+            case SUSPICIOUS -> Package.ScanStatus.SUSPICIOUS;
+            case MALICIOUS -> Package.ScanStatus.MALICIOUS;
+            case PENDING -> Package.ScanStatus.PENDING;
+            case NOT_RUN -> Package.ScanStatus.NOT_RUN;
         };
     }
 

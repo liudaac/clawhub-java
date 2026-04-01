@@ -152,6 +152,19 @@ public class PackageReleaseService {
         return PackageReleaseResponse.fromEntity(release);
     }
 
+    /**
+     * 获取发布版本实体（用于下载安全检查）
+     */
+    @Transactional(readOnly = true)
+    public PackageRelease findReleaseEntity(String packageName, String version) {
+        Package pkg = packageRepository.findByNormalizedNameAndSoftDeletedAtIsNull(packageName.toLowerCase())
+                .orElseThrow(() -> new ResourceNotFoundException("Package not found: " + packageName));
+
+        return packageReleaseRepository
+                .findByPackage_IdAndVersionAndSoftDeletedAtIsNull(pkg.getId(), version)
+                .orElseThrow(() -> new ResourceNotFoundException("Release not found: " + version));
+    }
+
     private boolean canPublishToPackage(Package pkg, UUID userId) {
         // Owner can always publish
         if (pkg.getOwnerUser().getId().equals(userId)) {

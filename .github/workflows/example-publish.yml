@@ -1,0 +1,66 @@
+name: Example - Publish Package
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (preview only)'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+jobs:
+  # 示例1: 从当前仓库发布（dry-run模式）
+  publish-dry-run:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/package-publish.yml
+    with:
+      dry_run: true
+      json: true
+      tags: 'latest,dev'
+    secrets:
+      clawhub_token: ${{ secrets.CLAWHUB_TOKEN }}
+
+  # 示例2: 从当前仓库发布（正式发布）
+  publish-release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/package-publish.yml
+    with:
+      dry_run: false
+      json: true
+      version: ${{ github.ref_name }}
+      tags: 'latest,stable'
+    secrets:
+      clawhub_token: ${{ secrets.CLAWHUB_TOKEN }}
+
+  # 示例3: 从其他GitHub仓库发布
+  publish-from-github:
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/package-publish.yml
+    with:
+      source: 'openclaw/openclaw'
+      ref: 'main'
+      dry_run: ${{ github.event.inputs.dry_run == 'true' }}
+      json: true
+      owner: 'openclaw'
+      tags: 'latest'
+    secrets:
+      clawhub_token: ${{ secrets.CLAWHUB_TOKEN }}
+
+  # 示例4: 手动触发，指定版本
+  publish-manual:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'false'
+    uses: ./.github/workflows/package-publish.yml
+    with:
+      dry_run: false
+      json: true
+      version: '1.0.0'
+      tags: 'latest,v1,v1.0'
+    secrets:
+      clawhub_token: ${{ secrets.CLAWHUB_TOKEN }}

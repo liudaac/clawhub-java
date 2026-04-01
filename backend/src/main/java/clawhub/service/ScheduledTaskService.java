@@ -1,6 +1,8 @@
 package clawhub.service;
 
+import clawhub.entity.PackageRelease;
 import clawhub.entity.SkillTransfer;
+import clawhub.repository.PackageReleaseRepository;
 import clawhub.repository.SkillRepository;
 import clawhub.repository.SkillTransferRepository;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +28,8 @@ public class ScheduledTaskService {
     private final GitHubService gitHubService;
     private final SkillVersionService skillVersionService;
     private final CommentModerationService commentModerationService;
+    private final PackageReleaseRepository packageReleaseRepository;
+    private final PackageSecurityScanService packageSecurityScanService;
 
     /**
      * 清理过期的技能转移请求
@@ -157,5 +161,113 @@ public class ScheduledTaskService {
     public void healthCheck() {
         // 简单的健康检查，记录系统状态
         log.debug("Health check passed");
+    }
+
+    // ==================== Package Scan Backfill Tasks ====================
+
+    /**
+     * 包发布版本安全扫描回扫任务
+     * 每30秒执行一次
+     * 对应原版: getPackageReleaseScanBackfillBatchInternal
+     */
+    @Scheduled(fixedRate = 30 * 1000)
+    @Transactional
+    public void processPackageScanBackfill() {
+        processPackageScanBackfillInternal(50, true); // 默认优先扫描最近发布的
+    }
+
+    /**
+     * 获取待回扫的发布版本批次
+     * 优先扫描最近发布的，再处理积压的
+     *
+     * @param batchSize 批次大小
+     * @param prioritizeRecent 是否优先扫描最近发布的
+     */
+    @Transactional(readOnly = true)
+    public List<PackageRelease> getBackfillBatch(int batchSize, boolean prioritizeRecent) {
+        int actualBatchSize = Math.max(1, Math.min(batchSize, 200));
+
+        if (prioritizeRecent) {
+            // 优先模式：先取最近的，再取积压的
+            List<PackageRelease> recent = packageReleaseRepository
+                .findTopNByOrderByCreatedAtDesc(PageRequest.of(0, actualBatchSize * 2));
+
+            List<PackageRelease> backlog = packageReleaseRepository
+                .findByScanStatusPendingOrderByCreatedAtAsc(PageRequest.of(0, actualBatchSize * 3));
+
+            // 合并并去重
+            java.util.Set<UUID> seen = new java.util.HashSet<>();
+            List<PackageRelease> result = new java.util.ArrayList<>();
+
+            // 先添加最近的
+            for (PackageRelease r : recent) {
+                if (seen.add(r.getId())) {
+                    result.add(r);
+                }
+            }
+
+            // 再添加积压的
+            for (PackageRelease r : backlog) {
+                if (seen.add(r.getId())) {
+                    result.add(r);
+                }
+            }
+
+            return result.stream().limit(actualBatchSize).toList();
+        } else {
+            // 普通模式：按创建时间顺序
+            return packageReleaseRepository
+                .findByScanStatusPendingOrderByCreatedAtAsc(PageRequest.of(0, actualBatchSize));
+        }
+    }
+
+    /**
+     * 处理包扫描回扫
+     *
+     * @param batchSize 批次大小
+     * @param prioritizeRecent 是否优先扫描最近发布的
+     */
+    @Transactional
+    public void processPackageScanBackfillInternal(int batchSize, boolean prioritizeRecent) {
+        log.debug("Running package scan backfill task (prioritizeRecent={})", prioritizeRecent);
+
+        List<PackageRelease> batch = getBackfillBatch(batchSize, prioritizeRecent);
+
+        if (batch.isEmpty()) {
+            log.debug("No packages to backfill");
+            return;
+        }
+
+        log.info("Processing {} packages for scan backfill", batch.size());
+
+        int successCount = 0;
+        int failCount = 0;
+
+        for (PackageRelease release : batch) {
+            try {
+                // 检查是否已删除
+                if (release.getSoftDeletedAt() != null) {
+                    continue;
+                }
+
+                // 检查是否已扫描
+                if (release.getVtAnalysis() != null && release.getLlmAnalysis() != null) {
+                    continue;
+                }
+
+                // 执行扫描
+                packageSecurityScanService.performSecurityScan(release.getId());
+                successCount++;
+
+                // 避免过快执行
+                Thread.sleep(100);
+
+            } catch (Exception e) {
+                log.error("Failed to backfill scan for release: {}", release.getId(), e);
+                failCount++;
+            }
+        }
+
+        log.info("Package scan backfill completed: {} success, {} failed", successCount, failCount);
     }
 }

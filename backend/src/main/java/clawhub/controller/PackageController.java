@@ -1,8 +1,11 @@
 package clawhub.controller;
 
 import clawhub.dto.*;
+import clawhub.entity.PackageRelease;
+import clawhub.service.PackageSecurityService;
 import clawhub.service.PackageService;
 import clawhub.service.PackageReleaseService;
+import clawhub.service.StorageService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -21,6 +24,8 @@ public class PackageController {
 
     private final PackageService packageService;
     private final PackageReleaseService packageReleaseService;
+    private final PackageSecurityService packageSecurityService;
+    private final StorageService storageService;
 
     @PostMapping
     public ResponseEntity<PackageResponse> createPackage(
@@ -111,6 +116,40 @@ public class PackageController {
     public ResponseEntity<PackageReleaseResponse> getLatestRelease(@PathVariable String name) {
         PackageReleaseResponse response = packageReleaseService.getLatestRelease(name);
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 下载包发布版本
+     * 对应原版: packages.ts - 下载安全检查
+     */
+    @GetMapping("/{name}/versions/{version}/download")
+    public ResponseEntity<?> downloadPackageRelease(
+            @PathVariable String name,
+            @PathVariable String version,
+            @RequestParam(required = false) String file,
+            @AuthenticationPrincipal OAuth2User principal) {
+
+        // 获取发布版本
+        PackageRelease release = packageReleaseService.findReleaseEntity(name, version);
+
+        // 安全检查 - 使用新的 PackageSecurityService
+        PackageSecurityService.DownloadSecurityBlock block =
+            packageSecurityService.getPackageDownloadSecurityBlock(release);
+
+        if (block != null) {
+            return ResponseEntity.status(block.status())
+                .body(ApiResponse.error(block.message()));
+        }
+
+        // 构建下载URL或返回文件
+        // 这里简化处理，实际应该返回重定向或文件流
+        String downloadUrl = storageService.getPackageDownloadUrl(
+            release.getPackage_().getId(), release.getId());
+
+        return ResponseEntity.ok(ApiResponse.success(
+            Map.of("downloadUrl", downloadUrl),
+            "Package download authorized"
+        ));
     }
 
     private UUID extractUserId(OAuth2User principal) {

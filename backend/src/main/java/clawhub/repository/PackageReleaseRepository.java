@@ -47,4 +47,30 @@ public interface PackageReleaseRepository extends JpaRepository<PackageRelease, 
     @Query("SELECT pr FROM PackageRelease pr WHERE pr.publishedBy = :userId AND pr.softDeletedAt IS NULL " +
            "ORDER BY pr.createdAt DESC")
     Page<PackageRelease> findByPublishedBy(@Param("userId") UUID userId, Pageable pageable);
+
+    // ==================== Scan Backfill Methods ====================
+
+    /**
+     * 查找扫描状态为 PENDING 的发布版本（按创建时间升序）
+     * 对应原版: getPackageReleaseScanBackfillBatchInternal
+     */
+    @Query("SELECT pr FROM PackageRelease pr WHERE pr.package_.scanStatus = 'PENDING' " +
+           "AND pr.softDeletedAt IS NULL ORDER BY pr.createdAt ASC")
+    List<PackageRelease> findByScanStatusPendingOrderByCreatedAtAsc(Pageable pageable);
+
+    /**
+     * 查找最近的 N 个发布版本（按创建时间降序）
+     * 用于优先扫描最近发布的包
+     */
+    @Query("SELECT pr FROM PackageRelease pr WHERE pr.softDeletedAt IS NULL " +
+           "ORDER BY pr.createdAt DESC")
+    List<PackageRelease> findTopNByOrderByCreatedAtDesc(Pageable pageable);
+
+    /**
+     * 查找需要回扫的发布版本批次
+     * 优先扫描最近发布的，再处理积压的
+     */
+    @Query("SELECT pr FROM PackageRelease pr WHERE pr.package_.scanStatus IN ('NOT_RUN', 'PENDING') " +
+           "AND pr.softDeletedAt IS NULL ORDER BY pr.createdAt DESC")
+    List<PackageRelease> findBackfillBatchOrderByCreatedAtDesc(Pageable pageable);
 }

@@ -1,0 +1,189 @@
+name: Package Publish
+
+on:
+  workflow_call:
+    inputs:
+      source:
+        description: 'Package source (owner/repo, GitHub URL, or local path)'
+        required: false
+        type: string
+        default: ''
+      ref:
+        description: 'Git ref to use when source is not pinned'
+        required: false
+        type: string
+      dry_run:
+        description: 'Preview only, do not publish'
+        required: false
+        type: boolean
+        default: true
+      json:
+        description: 'Output in JSON format'
+        required: false
+        type: boolean
+        default: true
+      registry:
+        description: 'ClawHub registry URL'
+        required: false
+        type: string
+        default: 'https://clawhub.ai'
+      owner:
+        description: 'Owner handle for org/shared publishing'
+        required: false
+        type: string
+      version:
+        description: 'Package version override'
+        required: false
+        type: string
+      tags:
+        description: 'Comma-separated tags'
+        required: false
+        type: string
+        default: 'latest'
+    secrets:
+      clawhub_token:
+        description: 'ClawHub API token'
+        required: false
+    outputs:
+      publish_json:
+        description: 'JSON output from publish command'
+        value: ${{ jobs.publish.outputs.publish_json }}
+      release_id:
+        description: 'Published release ID'
+        value: ${{ jobs.publish.outputs.release_id }}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      publish_json: ${{ steps.capture.outputs.publish_json }}
+      release_id: ${{ steps.capture.outputs.release_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Validate inputs
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+          CLAWHUB_TOKEN: ${{ secrets.clawhub_token }}
+        run: |
+          if [[ "$DRY_RUN" != "true" && -z "$CLAWHUB_TOKEN" ]]; then
+            echo "::error::clawhub_token is required when dry_run is false"
+            exit 1
+          fi
+          echo "✓ Inputs validated"
+
+      - name: Build CLI
+        run: |
+          cd cli
+          mvn package -DskipTests -q
+          echo "✓ CLI built successfully"
+
+      - name: Configure ClawHub CLI
+        run: |
+          mkdir -p ~/.clawhub
+          cat > ~/.clawhub/config << EOF
+          serverUrl=${{ inputs.registry }}
+          token=${{ secrets.clawhub_token }}
+          EOF
+          echo "✓ ClawHub CLI configured"
+
+      - name: Determine source
+        id: source
+        run: |
+          SOURCE="${{ inputs.source }}"
+          if [[ -z "$SOURCE" ]]; then
+            # 默认使用当前仓库
+            SOURCE="${{ github.repository }}"
+            if [[ -n "${{ inputs.ref }}" ]]; then
+              SOURCE="${SOURCE}@${{ inputs.ref }}"
+            else
+              SOURCE="${SOURCE}@${{ github.sha }}"
+            fi
+          fi
+          echo "source=$SOURCE" >> $GITHUB_OUTPUT
+          echo "✓ Source determined: $SOURCE"
+
+      - name: Publish package
+        id: publish
+        run: |
+          SOURCE="${{ steps.source.outputs.source }}"
+          
+          # Build command arguments
+          CMD_ARGS=""
+          
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            CMD_ARGS="$CMD_ARGS --dry-run"
+          fi
+          
+          if [[ "${{ inputs.json }}" == "true" ]]; then
+            CMD_ARGS="$CMD_ARGS --json"
+          fi
+          
+          if [[ -n "${{ inputs.owner }}" ]]; then
+            CMD_ARGS="$CMD_ARGS --owner=${{ inputs.owner }}"
+          fi
+          
+          if [[ -n "${{ inputs.version }}" ]]; then
+            CMD_ARGS="$CMD_ARGS --version=${{ inputs.version }}"
+          fi
+          
+          CMD_ARGS="$CMD_ARGS --tags=${{ inputs.tags }}"
+          
+          echo "Running: clawhub package publish \"$SOURCE\" $CMD_ARGS"
+          
+          # Execute publish command
+          OUTPUT=$(java -jar cli/target/clawhub-cli-*.jar package publish "$SOURCE" $CMD_ARGS 2>&1)
+          EXIT_CODE=$?
+          
+          echo "$OUTPUT"
+          
+          if [[ $EXIT_CODE -ne 0 ]]; then
+            echo "::error::Publish failed with exit code $EXIT_CODE"
+            exit $EXIT_CODE
+          fi
+          
+          # Store output for next step
+          echo "output<<EOF" >> $GITHUB_OUTPUT
+          echo "$OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "✓ Publish completed"
+
+      - name: Capture outputs
+        id: capture
+        run: |
+          echo "publish_json<<EOF" >> $GITHUB_OUTPUT
+          echo '${{ steps.publish.outputs.output }}' >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Try to extract release_id from JSON output
+          if [[ "${{ inputs.json }}" == "true" ]]; then
+            RELEASE_ID=$(echo '${{ steps.publish.outputs.output }}' | jq -r '.releaseId // empty' 2>/dev/null || echo "")
+            if [[ -n "$RELEASE_ID" ]]; then
+              echo "release_id=$RELEASE_ID" >> $GITHUB_OUTPUT
+              echo "✓ Release ID captured: $RELEASE_ID"
+            fi
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Package Publish Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Source:** ${{ steps.source.outputs.source }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Dry Run:** ${{ inputs.dry_run }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          if [[ -n "${{ steps.capture.outputs.release_id }}" ]]; then
+            echo "- **Release ID:** ${{ steps.capture.outputs.release_id }}" >> $GITHUB_STEP_SUMMARY
+          fi

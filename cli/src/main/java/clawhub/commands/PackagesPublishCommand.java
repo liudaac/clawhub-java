@@ -1,8 +1,10 @@
 package clawhub.commands;
 
 import clawhub.config.CliConfig;
+import clawhub.service.GitHubSourceService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import okhttp3.*;
@@ -25,9 +27,9 @@ import java.util.stream.Stream;
     mixinStandardHelpOptions = true
 )
 public class PackagesPublishCommand implements Callable<Integer> {
-    
-    @Parameters(paramLabel = "<path>", description = "Path to package directory")
-    private String packagePath;
+
+    @Parameters(paramLabel = "<source>", description = "Package source: local path or GitHub repo (owner/repo, owner/repo@ref, or https://github.com/...)")
+    private String source;
     
     @Option(names = {"-n", "--name"}, description = "Package name (default: directory name)")
     private String name;
@@ -58,10 +60,17 @@ public class PackagesPublishCommand implements Callable<Integer> {
     
     @Option(names = {"--dry-run"}, description = "Show what would be published without actually publishing")
     private boolean dryRun;
-    
+
+    @Option(names = {"--json"}, description = "Output in JSON format")
+    private boolean json;
+
+    @Option(names = {"--owner"}, description = "Owner handle for org/shared publishing")
+    private String owner;
+
     private final CliConfig config = CliConfig.load();
     private final OkHttpClient client = new OkHttpClient();
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
+    private final GitHubSourceService gitHubService = new GitHubSourceService();
     
     @Override
     public Integer call() throws Exception {
@@ -70,15 +79,33 @@ public class PackagesPublishCommand implements Callable<Integer> {
             System.err.println("Error: Not authenticated. Run 'clawhub login' first.");
             return 1;
         }
-        
-        Path path = Path.of(packagePath).toAbsolutePath().normalize();
-        if (!Files.exists(path)) {
-            System.err.println("Error: Path does not exist: " + path);
-            return 1;
-        }
-        if (!Files.isDirectory(path)) {
-            System.err.println("Error: Path is not a directory: " + path);
-            return 1;
+
+        Path path;
+        GitHubSourceService.FetchedSource fetchedSource = null;
+
+        // 判断是本地路径还是GitHub源
+        if (isGitHubSource(source)) {
+            // 从GitHub获取
+            System.out.println("Fetching from GitHub...");
+            GitHubSourceService.GitHubSource ghSource = gitHubService.resolveSourceInput(source);
+            fetchedSource = gitHubService.fetchGitHubSource(ghSource);
+            path = fetchedSource.directory();
+
+            // 如果未指定名称，从仓库名派生
+            if (name == null) {
+                name = ghSource.repo().toLowerCase().replaceAll("[^a-z0-9-]", "-");
+            }
+        } else {
+            // 本地路径
+            path = Path.of(source).toAbsolutePath().normalize();
+            if (!Files.exists(path)) {
+                System.err.println("Error: Path does not exist: " + path);
+                return 1;
+            }
+            if (!Files.isDirectory(path)) {
+                System.err.println("Error: Path is not a directory: " + path);
+                return 1;
+            }
         }
         
         // Derive name from directory if not provided
@@ -96,14 +123,26 @@ public class PackagesPublishCommand implements Callable<Integer> {
         boolean exists = checkPackageExists(name);
         
         if (dryRun) {
-            System.out.println("Dry run - would publish:");
-            System.out.println("  Package: " + name);
-            System.out.println("  Display Name: " + displayName);
-            System.out.println("  Family: " + family);
-            System.out.println("  Channel: " + channel);
-            System.out.println("  Version: " + version);
-            System.out.println("  Path: " + path);
-            System.out.println("  New package: " + !exists);
+            PublishPlan plan = buildPublishPlan(path, exists);
+
+            if (json) {
+                System.out.println(mapper.writeValueAsString(plan));
+            } else {
+                System.out.println("Dry run - would publish:");
+                System.out.println("  Package: " + plan.name);
+                System.out.println("  Display Name: " + plan.displayName);
+                System.out.println("  Family: " + plan.family);
+                System.out.println("  Channel: " + plan.channel);
+                System.out.println("  Version: " + plan.version);
+                System.out.println("  Path: " + path);
+                System.out.println("  Files: " + plan.fileCount);
+                System.out.println("  New package: " + !exists);
+            }
+
+            // 清理临时目录
+            if (fetchedSource != null) {
+                fetchedSource.cleanup().run();
+            }
             return 0;
         }
         
@@ -146,13 +185,75 @@ public class PackagesPublishCommand implements Callable<Integer> {
             System.out.println();
             System.out.println("✓ Successfully published " + name + " v" + version);
             System.out.println("  View at: " + config.getServerUrl() + "/packages/" + name);
-            
+
+            // 输出JSON格式（如果指定了--json）
+            if (json) {
+                ObjectNode result = mapper.createObjectNode()
+                    .put("success", true)
+                    .put("name", name)
+                    .put("version", version)
+                    .put("url", config.getServerUrl() + "/packages/" + name);
+                System.out.println(mapper.writeValueAsString(result));
+            }
+
             return 0;
         } catch (IOException e) {
             System.err.println("Error: " + e.getMessage());
             return 1;
+        } finally {
+            // 清理临时目录
+            if (fetchedSource != null) {
+                try {
+                    fetchedSource.cleanup().run();
+                } catch (IOException e) {
+                    // ignore cleanup errors
+                }
+            }
         }
     }
+
+    /**
+     * 判断是否为GitHub源
+     */
+    private boolean isGitHubSource(String input) {
+        return input.contains("github.com") ||
+               input.matches("^[a-zA-Z0-9_-]+/[a-zA-Z0-9._-]+(@[a-zA-Z0-9._-]+)?$");
+    }
+
+    /**
+     * 构建发布计划
+     */
+    private PublishPlan buildPublishPlan(Path path, boolean exists) throws IOException {
+        List<FileEntry> files = collectFiles(path);
+
+        return new PublishPlan(
+            name,
+            displayName != null ? displayName : name,
+            family,
+            channel,
+            version,
+            changelog,
+            path.toString(),
+            files.size(),
+            !exists
+        );
+    }
+
+    /**
+     * 发布计划
+     */
+    private record PublishPlan(
+        String name,
+        String displayName,
+        String family,
+        String channel,
+        String version,
+        String changelog,
+        String sourcePath,
+        int fileCount,
+        boolean isNewPackage
+    ) {}
+}
     
     private boolean checkPackageExists(String name) throws IOException {
         Request request = new Request.Builder()

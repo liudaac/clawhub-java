@@ -154,4 +154,12 @@ public class StorageService {
     public String generateStoragePath(String type, UUID ownerId, String slug) {
         return String.format("%s/%s/%s", type, ownerId.toString().substring(0, 8), slug);
     }
+
+    /**
+     * 获取包下载URL
+     */
+    public String getPackageDownloadUrl(UUID packageId, UUID releaseId) {
+        String objectName = String.format("packages/%s/releases/%s/package.zip", packageId, releaseId);
+        return getPresignedUrl(objectName);
+    }
 }
