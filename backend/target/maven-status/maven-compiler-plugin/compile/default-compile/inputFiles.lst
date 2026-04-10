@@ -6,6 +6,7 @@
 /root/clawhub-java/backend/src/main/java/clawhub/config/MinioConfig.java
 /root/clawhub-java/backend/src/main/java/clawhub/controller/PackageController.java
 /root/clawhub-java/backend/src/main/java/clawhub/controller/ModerationController.java
+/root/clawhub-java/backend/src/main/java/clawhub/service/PublishTokenService.java
 /root/clawhub-java/backend/src/main/java/clawhub/config/DatabaseConfig.java
 /root/clawhub-java/backend/src/main/java/clawhub/config/ElasticsearchConfig.java
 /root/clawhub-java/backend/src/main/java/clawhub/entity/Package.java
@@ -13,6 +14,7 @@
 /root/clawhub-java/backend/src/main/java/clawhub/repository/PackageRepository.java
 /root/clawhub-java/backend/src/main/java/clawhub/filter/RateLimitFilter.java
 /root/clawhub-java/backend/src/main/java/clawhub/controller/CommentController.java
+/root/clawhub-java/backend/src/main/java/clawhub/dto/OidcTokenResponse.java
 /root/clawhub-java/backend/src/main/java/clawhub/entity/PackageRelease.java
 /root/clawhub-java/backend/src/main/java/clawhub/service/PublisherMemberService.java
 /root/clawhub-java/backend/src/main/java/clawhub/controller/StarController.java
@@ -24,6 +26,7 @@
 /root/clawhub-java/backend/src/main/java/clawhub/service/LlmSecurityService.java
 /root/clawhub-java/backend/src/main/java/clawhub/service/PackageSecurityScanService.java
 /root/clawhub-java/backend/src/main/java/clawhub/dto/CreateCommentRequest.java
+/root/clawhub-java/backend/src/main/java/clawhub/dto/TrustedPublisherRequest.java
 /root/clawhub-java/backend/src/main/java/clawhub/repository/StarRepository.java
 /root/clawhub-java/backend/src/main/java/clawhub/service/PerformanceService.java
 /root/clawhub-java/backend/src/main/java/clawhub/dto/PublisherMemberResponse.java
@@ -40,11 +43,14 @@
 /root/clawhub-java/backend/src/main/java/clawhub/entity/SkillTransfer.java
 /root/clawhub-java/backend/src/main/java/clawhub/controller/FileController.java
 /root/clawhub-java/backend/src/main/java/clawhub/service/PackageSecurityService.java
+/root/clawhub-java/backend/src/main/java/clawhub/entity/SkillTrustedPublisher.java
 /root/clawhub-java/backend/src/main/java/clawhub/dto/PublisherResponse.java
 /root/clawhub-java/backend/src/main/java/clawhub/entity/Soul.java
 /root/clawhub-java/backend/src/main/java/clawhub/entity/Star.java
 /root/clawhub-java/backend/src/main/java/clawhub/controller/SkillFileController.java
 /root/clawhub-java/backend/src/main/java/clawhub/dto/CreateSoulRequest.java
+/root/clawhub-java/backend/src/main/java/clawhub/entity/SkillPublishToken.java
+/root/clawhub-java/backend/src/main/java/clawhub/service/GitHubOidcService.java
 /root/clawhub-java/backend/src/main/java/clawhub/dto/SkillVersionResponse.java
 /root/clawhub-java/backend/src/main/java/clawhub/dto/PublisherListResponse.java
 /root/clawhub-java/backend/src/main/java/clawhub/websocket/WebSocketAuthInterceptor.java
@@ -54,6 +60,7 @@
 /root/clawhub-java/backend/src/main/java/clawhub/repository/PublisherMemberRepository.java
 /root/clawhub-java/backend/src/main/java/clawhub/dto/CreateVersionRequest.java
 /root/clawhub-java/backend/src/main/java/clawhub/config/SecurityConfig.java
+/root/clawhub-java/backend/src/main/java/clawhub/dto/TrustedPublisherResponse.java
 /root/clawhub-java/backend/src/main/java/clawhub/dto/PackageListResponse.java
 /root/clawhub-java/backend/src/main/java/clawhub/service/StorageService.java
 /root/clawhub-java/backend/src/main/java/clawhub/repository/SoulRepository.java
@@ -65,6 +72,7 @@
 /root/clawhub-java/backend/src/main/java/clawhub/dto/SkillSearchResponse.java
 /root/clawhub-java/backend/src/main/java/clawhub/service/BatchOperationService.java
 /root/clawhub-java/backend/src/main/java/clawhub/dto/ApiResponse.java
+/root/clawhub-java/backend/src/main/java/clawhub/repository/SkillPublishTokenRepository.java
 /root/clawhub-java/backend/src/main/java/clawhub/service/ModerationService.java
 /root/clawhub-java/backend/src/main/java/clawhub/controller/AuthController.java
 /root/clawhub-java/backend/src/main/java/clawhub/controller/CommentReportController.java
@@ -85,6 +93,7 @@
 /root/clawhub-java/backend/src/main/java/clawhub/entity/Publisher.java
 /root/clawhub-java/backend/src/main/java/clawhub/dto/FileContentResponse.java
 /root/clawhub-java/backend/src/main/java/clawhub/repository/SkillRepository.java
+/root/clawhub-java/backend/src/main/java/clawhub/dto/OidcTokenRequest.java
 /root/clawhub-java/backend/src/main/java/clawhub/service/SkillTransferService.java
 /root/clawhub-java/backend/src/main/java/clawhub/security/UserDetailsServiceImpl.java
 /root/clawhub-java/backend/src/main/java/clawhub/service/CacheService.java
@@ -107,6 +116,7 @@
 /root/clawhub-java/backend/src/main/java/clawhub/controller/SkillController.java
 /root/clawhub-java/backend/src/main/java/clawhub/service/ScheduledTaskService.java
 /root/clawhub-java/backend/src/main/java/clawhub/config/RateLimitConfig.java
+/root/clawhub-java/backend/src/main/java/clawhub/controller/TrustedPublisherController.java
 /root/clawhub-java/backend/src/main/java/clawhub/dto/PackageSearchRequest.java
 /root/clawhub-java/backend/src/main/java/clawhub/repository/UserRepository.java
 /root/clawhub-java/backend/src/main/java/clawhub/config/CacheConfig.java
@@ -121,7 +131,10 @@
 /root/clawhub-java/backend/src/main/java/clawhub/dto/UpdateSoulRequest.java
 /root/clawhub-java/backend/src/main/java/clawhub/service/SkillVersionService.java
 /root/clawhub-java/backend/src/main/java/clawhub/dto/PublisherCreateRequest.java
+/root/clawhub-java/backend/src/main/java/clawhub/service/TrustedPublisherService.java
 /root/clawhub-java/backend/src/main/java/clawhub/exception/GlobalExceptionHandler.java
 /root/clawhub-java/backend/src/main/java/clawhub/service/PackageService.java
 /root/clawhub-java/backend/src/main/java/clawhub/repository/SkillTransferRepository.java
+/root/clawhub-java/backend/src/main/java/clawhub/controller/OidcAuthController.java
+/root/clawhub-java/backend/src/main/java/clawhub/repository/SkillTrustedPublisherRepository.java
 /root/clawhub-java/backend/src/main/java/clawhub/exception/ResourceNotFoundException.java

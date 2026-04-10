@@ -54,3 +54,32 @@ export interface Comment {
   createdAt: string
   updatedAt: string
 }
+
+export interface TrustedPublisher {
+  id: string
+  repository: string
+  repositoryOwner: string
+  workflowFilename: string
+  environment: string
+  createdAt: string
+}
+
+export interface TrustedPublisherRequest {
+  repository: string
+  repositoryId: string
+  repositoryOwner: string
+  repositoryOwnerId: string
+  workflowFilename: string
+  environment: string
+}
+
+export interface OidcTokenRequest {
+  oidcToken: string
+}
+
+export interface OidcTokenResponse {
+  token: string
+  expiresAt: string
+  skillSlug: string
+  repository: string
+}

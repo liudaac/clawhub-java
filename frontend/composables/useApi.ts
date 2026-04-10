@@ -74,14 +74,34 @@ export function useApi() {
     getHiddenSkills: (page?: number, size?: number) =>
       api<ApiResponse<Skill[]>>(`/admin/moderation/hidden`, { query: { page, size } }),
     hideSkill: (id: string, reason: string, note: string) =>
-      api<ApiResponse<Skill>>(`/admin/skills/${id}/hide`, { 
-        method: 'POST', 
-        body: { reason, note } 
+      api<ApiResponse<Skill>>(`/admin/skills/${id}/hide`, {
+        method: 'POST',
+        body: { reason, note }
       }),
     unhideSkill: (id: string, note: string) =>
-      api<ApiResponse<Skill>>(`/admin/skills/${id}/unhide`, { 
-        method: 'POST', 
-        body: { note } 
+      api<ApiResponse<Skill>>(`/admin/skills/${id}/unhide`, {
+        method: 'POST',
+        body: { note }
+      }),
+
+    // Trusted Publishers
+    getTrustedPublishers: (slug: string) =>
+      api<ApiResponse<TrustedPublisher[]>>(`/skills/${slug}/trusted-publishers`),
+    createTrustedPublisher: (slug: string, data: TrustedPublisherRequest) =>
+      api<ApiResponse<TrustedPublisher>>(`/skills/${slug}/trusted-publishers`, {
+        method: 'POST',
+        body: data
+      }),
+    deleteTrustedPublisher: (slug: string, publisherId: string) =>
+      api<ApiResponse<void>>(`/skills/${slug}/trusted-publishers/${publisherId}`, {
+        method: 'DELETE'
+      }),
+
+    // OIDC Token Exchange
+    exchangeOidcToken: (data: OidcTokenRequest) =>
+      api<ApiResponse<OidcTokenResponse>>('/auth/oidc/token', {
+        method: 'POST',
+        body: data
       }),
   }
 }
