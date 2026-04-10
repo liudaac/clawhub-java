@@ -27,6 +27,7 @@
 /root/clawhub-java/backend/src/main/java/clawhub/service/PackageSecurityScanService.java
 /root/clawhub-java/backend/src/main/java/clawhub/dto/CreateCommentRequest.java
 /root/clawhub-java/backend/src/main/java/clawhub/dto/TrustedPublisherRequest.java
+/root/clawhub-java/backend/src/main/java/clawhub/dto/RenameSkillResponse.java
 /root/clawhub-java/backend/src/main/java/clawhub/repository/StarRepository.java
 /root/clawhub-java/backend/src/main/java/clawhub/service/PerformanceService.java
 /root/clawhub-java/backend/src/main/java/clawhub/dto/PublisherMemberResponse.java
@@ -41,6 +42,7 @@
 /root/clawhub-java/backend/src/main/java/clawhub/controller/PublisherController.java
 /root/clawhub-java/backend/src/main/java/clawhub/repository/SkillVersionRepository.java
 /root/clawhub-java/backend/src/main/java/clawhub/entity/SkillTransfer.java
+/root/clawhub-java/backend/src/main/java/clawhub/service/SkillMergeService.java
 /root/clawhub-java/backend/src/main/java/clawhub/controller/FileController.java
 /root/clawhub-java/backend/src/main/java/clawhub/service/PackageSecurityService.java
 /root/clawhub-java/backend/src/main/java/clawhub/entity/SkillTrustedPublisher.java
@@ -55,6 +57,8 @@
 /root/clawhub-java/backend/src/main/java/clawhub/dto/PublisherListResponse.java
 /root/clawhub-java/backend/src/main/java/clawhub/websocket/WebSocketAuthInterceptor.java
 /root/clawhub-java/backend/src/main/java/clawhub/service/SkillService.java
+/root/clawhub-java/backend/src/main/java/clawhub/repository/SkillSlugAliasRepository.java
+/root/clawhub-java/backend/src/main/java/clawhub/service/SkillSlugAliasService.java
 /root/clawhub-java/backend/src/main/java/clawhub/service/SkillSearchService.java
 /root/clawhub-java/backend/src/main/java/clawhub/repository/PackageReleaseRepository.java
 /root/clawhub-java/backend/src/main/java/clawhub/repository/PublisherMemberRepository.java
@@ -62,11 +66,15 @@
 /root/clawhub-java/backend/src/main/java/clawhub/config/SecurityConfig.java
 /root/clawhub-java/backend/src/main/java/clawhub/dto/TrustedPublisherResponse.java
 /root/clawhub-java/backend/src/main/java/clawhub/dto/PackageListResponse.java
+/root/clawhub-java/backend/src/main/java/clawhub/dto/MergeSkillResponse.java
 /root/clawhub-java/backend/src/main/java/clawhub/service/StorageService.java
 /root/clawhub-java/backend/src/main/java/clawhub/repository/SoulRepository.java
 /root/clawhub-java/backend/src/main/java/clawhub/entity/Comment.java
+/root/clawhub-java/backend/src/main/java/clawhub/entity/SkillSlugAlias.java
 /root/clawhub-java/backend/src/main/java/clawhub/dto/UserResponse.java
 /root/clawhub-java/backend/src/main/java/clawhub/service/SoulService.java
+/root/clawhub-java/backend/src/main/java/clawhub/dto/MergeSkillRequest.java
+/root/clawhub-java/backend/src/main/java/clawhub/service/SkillRenameService.java
 /root/clawhub-java/backend/src/main/java/clawhub/dto/SkillResponse.java
 /root/clawhub-java/backend/src/main/java/clawhub/dto/PackageUpdateRequest.java
 /root/clawhub-java/backend/src/main/java/clawhub/dto/SkillSearchResponse.java
@@ -132,6 +140,7 @@
 /root/clawhub-java/backend/src/main/java/clawhub/service/SkillVersionService.java
 /root/clawhub-java/backend/src/main/java/clawhub/dto/PublisherCreateRequest.java
 /root/clawhub-java/backend/src/main/java/clawhub/service/TrustedPublisherService.java
+/root/clawhub-java/backend/src/main/java/clawhub/dto/RenameSkillRequest.java
 /root/clawhub-java/backend/src/main/java/clawhub/exception/GlobalExceptionHandler.java
 /root/clawhub-java/backend/src/main/java/clawhub/service/PackageService.java
 /root/clawhub-java/backend/src/main/java/clawhub/repository/SkillTransferRepository.java

@@ -5,6 +5,8 @@ import clawhub.entity.Skill;
 import clawhub.entity.SkillVersion;
 import clawhub.entity.User;
 import clawhub.security.CurrentUser;
+import clawhub.service.SkillMergeService;
+import clawhub.service.SkillRenameService;
 import clawhub.service.SkillService;
 import clawhub.service.SkillVersionService;
 import jakarta.validation.Valid;
@@ -30,6 +32,8 @@ public class SkillController {
 
     private final SkillService skillService;
     private final SkillVersionService skillVersionService;
+    private final SkillRenameService skillRenameService;
+    private final SkillMergeService skillMergeService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<SkillResponse>>> listSkills(
@@ -282,6 +286,82 @@ public class SkillController {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(ApiResponse.error(e.getMessage()));
             }
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    // Rename endpoint
+    @PostMapping("/{slug}/rename")
+    public ResponseEntity<ApiResponse<RenameSkillResponse>> renameSkill(
+            @PathVariable String slug,
+            @Valid @RequestBody RenameSkillRequest request,
+            @CurrentUser User currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authentication required"));
+        }
+
+        try {
+            Skill skill = skillRenameService.renameSkill(slug, request.getNewSlug(), currentUser.getId());
+
+            RenameSkillResponse response = RenameSkillResponse.builder()
+                    .ok(true)
+                    .slug(skill.getSlug())
+                    .previousSlug(slug)
+                    .message("Skill renamed successfully")
+                    .build();
+
+            return ResponseEntity.ok(ApiResponse.success(response, "Skill renamed successfully"));
+        } catch (clawhub.exception.ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(e.getMessage()));
+        } catch (clawhub.exception.ForbiddenException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error(e.getMessage()));
+        } catch (clawhub.exception.BadRequestException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(e.getMessage()));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    // Merge endpoint
+    @PostMapping("/{slug}/merge")
+    public ResponseEntity<ApiResponse<MergeSkillResponse>> mergeSkill(
+            @PathVariable String slug,
+            @Valid @RequestBody MergeSkillRequest request,
+            @CurrentUser User currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Authentication required"));
+        }
+
+        try {
+            Skill targetSkill = skillMergeService.mergeSkills(slug, request.getTargetSlug(), currentUser.getId());
+
+            MergeSkillResponse response = MergeSkillResponse.builder()
+                    .ok(true)
+                    .sourceSlug(slug)
+                    .targetSlug(targetSkill.getSlug())
+                    .message("Skill merged successfully")
+                    .build();
+
+            return ResponseEntity.ok(ApiResponse.success(response, "Skill merged successfully"));
+        } catch (clawhub.exception.ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(e.getMessage()));
+        } catch (clawhub.exception.ForbiddenException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error(e.getMessage()));
+        } catch (clawhub.exception.BadRequestException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(e.getMessage()));
+        } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.error(e.getMessage()));
         }

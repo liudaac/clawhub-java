@@ -125,6 +125,9 @@ public class Skill {
     @Builder.Default
     private java.util.Set<String> capabilityTags = new java.util.HashSet<>();
 
+    @Column(name = "soft_deleted_at")
+    private Instant softDeletedAt;
+
     public enum ModerationStatus {
         ACTIVE, HIDDEN, REMOVED
     }

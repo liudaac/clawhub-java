@@ -25,6 +25,7 @@ public class SkillService {
     private final SkillRepository skillRepository;
     private final SkillVersionRepository skillVersionRepository;
     private final SkillWebSocketHandler webSocketHandler;
+    private final SkillSlugAliasService aliasService;
 
     @Transactional(readOnly = true)
     public Page<Skill> findAll(Pageable pageable) {
@@ -59,6 +60,18 @@ public class SkillService {
     @Transactional(readOnly = true)
     public Optional<Skill> findBySlug(String slug) {
         return skillRepository.findBySlug(slug);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Skill> findBySlugWithAlias(String slug) {
+        // First try direct skill lookup
+        Optional<Skill> skill = skillRepository.findBySlug(slug);
+        if (skill.isPresent()) {
+            return skill;
+        }
+
+        // Try alias lookup
+        return aliasService.resolveSkillBySlug(slug);
     }
 
     @Transactional(readOnly = true)
