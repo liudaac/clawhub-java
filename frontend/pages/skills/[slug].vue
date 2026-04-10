@@ -100,12 +100,57 @@
       </div>
     </div>
 
-    <!-- Trusted Publishing (Owner Only) -->
+    <!-- Owner Tools (Owner Only) -->
     <div v-if="canEdit" class="rounded-lg border bg-card text-card-foreground shadow-sm">
       <div class="flex flex-col space-y-1.5 p-6">
-        <h3 class="text-2xl font-semibold leading-none tracking-tight">Trusted Publishing</h3>
-        <p class="text-sm text-muted-foreground">Configure GitHub Actions OIDC trusted publishers</p>
+        <h3 class="text-2xl font-semibold leading-none tracking-tight">Owner Tools</h3>
+        <p class="text-sm text-muted-foreground">Manage skill ownership and settings</p>
       </div>
+      <div class="p-6 pt-0 space-y-6">
+        <!-- Rename Section -->
+        <div class="border-b pb-6">
+          <h4 class="font-medium mb-3">Rename Skill</h4>
+          <p class="text-sm text-muted-foreground mb-3">Change the skill slug. The old slug will redirect to the new one.</p>
+          <div class="flex flex-col sm:flex-row gap-2">
+            <input
+              v-model="renameSlug"
+              placeholder="new-skill-slug"
+              class="flex-1 px-3 py-2 rounded-md border border-input bg-background"
+            />
+            <button
+              @click="showRenameConfirm = true"
+              :disabled="!renameSlug || renameSlug === skill.slug || renaming"
+              class="px-4 py-2 rounded-md text-sm font-medium border border-input hover:bg-accent disabled:opacity-50"
+            >
+              Rename
+            </button>
+          </div>
+        </div>
+
+        <!-- Merge Section -->
+        <div class="border-b pb-6">
+          <h4 class="font-medium mb-3">Merge Skill</h4>
+          <p class="text-sm text-muted-foreground mb-3">Merge this skill into another. This skill will be hidden and redirect to the target.</p>
+          <div class="flex flex-col sm:flex-row gap-2">
+            <input
+              v-model="mergeTargetSlug"
+              placeholder="target-skill-slug"
+              class="flex-1 px-3 py-2 rounded-md border border-input bg-background"
+            />
+            <button
+              @click="showMergeConfirm = true"
+              :disabled="!mergeTargetSlug || mergeTargetSlug === skill.slug || merging"
+              class="px-4 py-2 rounded-md text-sm font-medium border border-destructive text-destructive hover:bg-destructive/10 disabled:opacity-50"
+            >
+              Merge
+            </button>
+          </div>
+        </div>
+
+        <!-- Trusted Publishing Section -->
+        <div>
+          <h4 class="font-medium mb-3">Trusted Publishing</h4>
+          <p class="text-sm text-muted-foreground mb-3">Configure GitHub Actions OIDC trusted publishers</p>
       <div class="p-6 pt-0 space-y-4">
         <!-- Trusted Publishers List -->
         <div v-if="trustedPublishers.length > 0" class="space-y-3">
@@ -181,6 +226,58 @@
               {{ addingPublisher ? 'Adding...' : 'Add Trusted Publisher' }}
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rename Confirmation Dialog -->
+    <div v-if="showRenameConfirm" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div class="bg-background rounded-lg p-6 w-full max-w-md">
+        <h3 class="text-lg font-semibold mb-2">Rename Skill?</h3>
+        <p class="text-sm text-muted-foreground mb-4">
+          This will permanently rename <strong>{{ skill?.slug }}</strong> to <strong>{{ renameSlug.trim().toLowerCase() }}</strong>.
+          The old slug will redirect to the new one. This cannot be undone without another rename.
+        </p>
+        <div class="flex flex-col sm:flex-row justify-end gap-2">
+          <button
+            @click="showRenameConfirm = false"
+            class="px-4 py-2 rounded-md border border-input hover:bg-accent"
+          >
+            Cancel
+          </button>
+          <button
+            @click="handleRename"
+            :disabled="renaming"
+            class="px-4 py-2 rounded-md bg-primary text-primary-foreground disabled:opacity-50"
+          >
+            {{ renaming ? 'Renaming...' : 'Rename' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Merge Confirmation Dialog -->
+    <div v-if="showMergeConfirm" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div class="bg-background rounded-lg p-6 w-full max-w-md">
+        <h3 class="text-lg font-semibold mb-2">Merge Skill?</h3>
+        <p class="text-sm text-muted-foreground mb-4">
+          This will merge <strong>{{ skill?.slug }}</strong> into <strong>{{ mergeTargetSlug.trim().toLowerCase() }}</strong>.
+          This skill will be hidden and redirect to the target. This is not easily reversible.
+        </p>
+        <div class="flex flex-col sm:flex-row justify-end gap-2">
+          <button
+            @click="showMergeConfirm = false"
+            class="px-4 py-2 rounded-md border border-input hover:bg-accent"
+          >
+            Cancel
+          </button>
+          <button
+            @click="handleMerge"
+            :disabled="merging"
+            class="px-4 py-2 rounded-md bg-destructive text-destructive-foreground disabled:opacity-50"
+          >
+            {{ merging ? 'Merging...' : 'Merge and Hide' }}
+          </button>
         </div>
       </div>
     </div>
@@ -280,6 +377,14 @@ const newPublisher = ref<Partial<TrustedPublisherRequest>>({
 })
 const addingPublisher = ref(false)
 const deletingPublisher = ref<string | null>(null)
+
+// Rename/Merge state
+const renameSlug = ref('')
+const mergeTargetSlug = ref('')
+const showRenameConfirm = ref(false)
+const showMergeConfirm = ref(false)
+const renaming = ref(false)
+const merging = ref(false)
 
 // Available capability tags
 const availableTags = ['web-search', 'file-operation', 'browser', 'messaging', 'data-analysis', 'ai-generation', 'automation']
@@ -407,6 +512,40 @@ const isValidPublisher = computed(() => {
     newPublisher.value.repositoryOwnerId &&
     newPublisher.value.workflowFilename
 })
+
+// Rename skill
+async function handleRename() {
+  if (!skill.value || !renameSlug.value) return
+  renaming.value = true
+  try {
+    const response = await api.renameSkill(slug, renameSlug.value)
+    showRenameConfirm.value = false
+    // Navigate to new slug
+    navigateTo(`/skills/${response.data.slug}`)
+  } catch (error) {
+    alert(error instanceof Error ? error.message : 'Failed to rename skill')
+    showRenameConfirm.value = false
+  } finally {
+    renaming.value = false
+  }
+}
+
+// Merge skill
+async function handleMerge() {
+  if (!skill.value || !mergeTargetSlug.value) return
+  merging.value = true
+  try {
+    await api.mergeSkill(slug, mergeTargetSlug.value)
+    showMergeConfirm.value = false
+    // Navigate to target skill
+    navigateTo(`/skills/${mergeTargetSlug.value}`)
+  } catch (error) {
+    alert(error instanceof Error ? error.message : 'Failed to merge skill')
+    showMergeConfirm.value = false
+  } finally {
+    merging.value = false
+  }
+}
 
 // Load trusted publishers on mount
 onMounted(() => {

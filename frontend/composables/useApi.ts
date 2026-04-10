@@ -103,5 +103,17 @@ export function useApi() {
         method: 'POST',
         body: data
       }),
+
+    // Skill Ownership Actions
+    renameSkill: (slug: string, newSlug: string) =>
+      api<ApiResponse<Skill>>(`/skills/${slug}/rename`, {
+        method: 'POST',
+        body: { newSlug }
+      }),
+    mergeSkill: (slug: string, targetSlug: string) =>
+      api<ApiResponse<void>>(`/skills/${slug}/merge`, {
+        method: 'POST',
+        body: { targetSlug }
+      }),
   }
 }
