@@ -100,6 +100,91 @@
       </div>
     </div>
 
+    <!-- Trusted Publishing (Owner Only) -->
+    <div v-if="canEdit" class="rounded-lg border bg-card text-card-foreground shadow-sm">
+      <div class="flex flex-col space-y-1.5 p-6">
+        <h3 class="text-2xl font-semibold leading-none tracking-tight">Trusted Publishing</h3>
+        <p class="text-sm text-muted-foreground">Configure GitHub Actions OIDC trusted publishers</p>
+      </div>
+      <div class="p-6 pt-0 space-y-4">
+        <!-- Trusted Publishers List -->
+        <div v-if="trustedPublishers.length > 0" class="space-y-3">
+          <div v-for="publisher in trustedPublishers" :key="publisher.id" class="flex items-center justify-between p-3 rounded-md border bg-muted/50">
+            <div class="min-w-0">
+              <p class="font-medium truncate">{{ publisher.repository }}</p>
+              <p class="text-sm text-muted-foreground">{{ publisher.workflowFilename }} • {{ publisher.environment }}</p>
+            </div>
+            <button
+              @click="deletePublisher(publisher.id)"
+              :disabled="deletingPublisher === publisher.id"
+              class="px-3 py-1.5 rounded-md text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
+            >
+              {{ deletingPublisher === publisher.id ? 'Deleting...' : 'Delete' }}
+            </button>
+          </div>
+        </div>
+        <div v-else class="text-sm text-muted-foreground">
+          No trusted publishers configured. Add one below to enable OIDC publishing.
+        </div>
+
+        <!-- Add Trusted Publisher Form -->
+        <div class="border-t pt-4">
+          <h4 class="font-medium mb-3">Add Trusted Publisher</h4>
+          <div class="space-y-3">
+            <div>
+              <label class="text-sm font-medium mb-1.5 block">Repository (owner/repo)</label>
+              <input
+                v-model="newPublisher.repository"
+                placeholder="e.g., myorg/myrepo"
+                class="w-full px-3 py-2 rounded-md border border-input bg-background"
+              />
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-sm font-medium mb-1.5 block">Repository ID</label>
+                <input
+                  v-model="newPublisher.repositoryId"
+                  placeholder="GitHub repo ID"
+                  class="w-full px-3 py-2 rounded-md border border-input bg-background"
+                />
+              </div>
+              <div>
+                <label class="text-sm font-medium mb-1.5 block">Repository Owner ID</label>
+                <input
+                  v-model="newPublisher.repositoryOwnerId"
+                  placeholder="GitHub owner ID"
+                  class="w-full px-3 py-2 rounded-md border border-input bg-background"
+                />
+              </div>
+            </div>
+            <div>
+              <label class="text-sm font-medium mb-1.5 block">Workflow Filename</label>
+              <input
+                v-model="newPublisher.workflowFilename"
+                placeholder="e.g., publish.yml"
+                class="w-full px-3 py-2 rounded-md border border-input bg-background"
+              />
+            </div>
+            <div>
+              <label class="text-sm font-medium mb-1.5 block">Environment</label>
+              <input
+                v-model="newPublisher.environment"
+                placeholder="e.g., production"
+                class="w-full px-3 py-2 rounded-md border border-input bg-background"
+              />
+            </div>
+            <button
+              @click="addPublisher"
+              :disabled="addingPublisher || !isValidPublisher"
+              class="w-full px-4 py-2 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {{ addingPublisher ? 'Adding...' : 'Add Trusted Publisher' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Tag Editor Modal -->
     <div v-if="showTagEditor" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div class="bg-background rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
@@ -183,6 +268,19 @@ const editTags = ref<string[]>([])
 const newTag = ref('')
 const saving = ref(false)
 
+// Trusted publishers state
+const trustedPublishers = ref<TrustedPublisher[]>([])
+const newPublisher = ref<Partial<TrustedPublisherRequest>>({
+  repository: '',
+  repositoryId: '',
+  repositoryOwner: '',
+  repositoryOwnerId: '',
+  workflowFilename: 'package-publish.yml',
+  environment: 'production'
+})
+const addingPublisher = ref(false)
+const deletingPublisher = ref<string | null>(null)
+
 // Available capability tags
 const availableTags = ['web-search', 'file-operation', 'browser', 'messaging', 'data-analysis', 'ai-generation', 'automation']
 
@@ -244,6 +342,75 @@ watch(showTagEditor, (show) => {
   if (show && skill.value) {
     editTags.value = [...(skill.value.capabilityTags || [])]
   }
+})
+
+// Load trusted publishers
+async function loadTrustedPublishers() {
+  if (!canEdit.value || !skill.value) return
+  try {
+    const response = await api.getTrustedPublishers(slug)
+    trustedPublishers.value = response.data || []
+  } catch (error) {
+    console.error('Failed to load trusted publishers:', error)
+  }
+}
+
+// Add trusted publisher
+async function addPublisher() {
+  if (!skill.value || !isValidPublisher.value) return
+  addingPublisher.value = true
+  try {
+    const [owner, repo] = newPublisher.value.repository!.split('/')
+    await api.createTrustedPublisher(slug, {
+      repository: newPublisher.value.repository!,
+      repositoryId: newPublisher.value.repositoryId!,
+      repositoryOwner: owner,
+      repositoryOwnerId: newPublisher.value.repositoryOwnerId!,
+      workflowFilename: newPublisher.value.workflowFilename!,
+      environment: newPublisher.value.environment!
+    })
+    // Reset form
+    newPublisher.value = {
+      repository: '',
+      repositoryId: '',
+      repositoryOwner: '',
+      repositoryOwnerId: '',
+      workflowFilename: 'package-publish.yml',
+      environment: 'production'
+    }
+    await loadTrustedPublishers()
+  } catch (error) {
+    alert(error instanceof Error ? error.message : 'Failed to add trusted publisher')
+  } finally {
+    addingPublisher.value = false
+  }
+}
+
+// Delete trusted publisher
+async function deletePublisher(publisherId: string) {
+  if (!skill.value) return
+  deletingPublisher.value = publisherId
+  try {
+    await api.deleteTrustedPublisher(slug, publisherId)
+    await loadTrustedPublishers()
+  } catch (error) {
+    alert(error instanceof Error ? error.message : 'Failed to delete trusted publisher')
+  } finally {
+    deletingPublisher.value = null
+  }
+}
+
+// Computed
+const isValidPublisher = computed(() => {
+  return newPublisher.value.repository?.includes('/') &&
+    newPublisher.value.repositoryId &&
+    newPublisher.value.repositoryOwnerId &&
+    newPublisher.value.workflowFilename
+})
+
+// Load trusted publishers on mount
+onMounted(() => {
+  loadTrustedPublishers()
 })
 
 function formatNumber(num: number): string {

@@ -4,52 +4,68 @@ on:
   workflow_call:
     inputs:
       source:
-        description: 'Package source (owner/repo, GitHub URL, or local path)'
+        description: Package source to publish. Usually owner/repo, owner/repo@ref, or a GitHub URL.
         required: false
         type: string
-        default: ''
+        default: ""
       ref:
-        description: 'Git ref to use when source is not pinned'
+        description: Optional ref to append to the source when source is not already pinned.
         required: false
         type: string
       dry_run:
-        description: 'Preview only, do not publish'
+        description: Preview only. When true, no publish mutation is performed.
         required: false
         type: boolean
         default: true
       json:
-        description: 'Output in JSON format'
+        description: Emit structured JSON output.
         required: false
         type: boolean
         default: true
       registry:
-        description: 'ClawHub registry URL'
+        description: ClawHub registry URL.
         required: false
         type: string
-        default: 'https://clawhub.ai'
+        default: https://clawhub.ai
+      site:
+        description: ClawHub site URL.
+        required: false
+        type: string
+        default: https://clawhub.ai
       owner:
-        description: 'Owner handle for org/shared publishing'
+        description: Optional owner handle override for org/shared publishing.
         required: false
         type: string
       version:
-        description: 'Package version override'
+        description: Optional package version override.
         required: false
         type: string
       tags:
-        description: 'Comma-separated tags'
+        description: Optional comma-separated tags override.
         required: false
         type: string
-        default: 'latest'
+        default: latest
+      source_repo:
+        description: Optional source repo override for local-folder publishes.
+        required: false
+        type: string
+      source_commit:
+        description: Optional source commit override for local-folder publishes.
+        required: false
+        type: string
+      source_ref:
+        description: Optional source ref override for local-folder publishes.
+        required: false
+        type: string
     secrets:
       clawhub_token:
-        description: 'ClawHub API token'
         required: false
     outputs:
       publish_json:
-        description: 'JSON output from publish command'
+        description: Structured JSON output from clawhub package publish.
         value: ${{ jobs.publish.outputs.publish_json }}
       release_id:
-        description: 'Published release ID'
+        description: Published release id when dry_run is false.
         value: ${{ jobs.publish.outputs.release_id }}
 
 jobs:
@@ -58,132 +74,119 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+      id-token: write
     outputs:
       publish_json: ${{ steps.capture.outputs.publish_json }}
       release_id: ${{ steps.capture.outputs.release_id }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
-          cache: maven
 
-      - name: Validate inputs
+      - name: Validate publish mode inputs
         env:
           DRY_RUN: ${{ inputs.dry_run }}
+          JSON_MODE: ${{ inputs.json }}
           CLAWHUB_TOKEN: ${{ secrets.clawhub_token }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
         run: |
-          if [[ "$DRY_RUN" != "true" && -z "$CLAWHUB_TOKEN" ]]; then
-            echo "::error::clawhub_token is required when dry_run is false"
-            exit 1
+          if [[ "$JSON_MODE" != "true" ]]; then
+            echo "::warning::This reusable workflow always emits JSON output; forcing --json for downstream parsing."
           fi
-          echo "✓ Inputs validated"
+          if [[ "$DRY_RUN" == "true" ]]; then
+            exit 0
+          fi
+          if [[ -n "$CLAWHUB_TOKEN" ]]; then
+            exit 0
+          fi
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" && -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]]; then
+            echo "No ClawHub token provided; publish will rely on GitHub OIDC trusted publishing."
+            exit 0
+          fi
+          echo "::error::Real publishes need secrets.clawhub_token, or GitHub OIDC on workflow_dispatch runs (permissions.id-token=write)."
+          exit 1
 
-      - name: Build CLI
+      - name: Request OIDC token
+        if: ${{ secrets.clawhub_token == '' && inputs.dry_run != 'true' }}
+        id: oidc
         run: |
-          cd cli
-          mvn package -DskipTests -q
-          echo "✓ CLI built successfully"
+          OIDC_TOKEN=$(curl -s -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=clawhub" | jq -r '.value')
+          echo "token=$OIDC_TOKEN" >> $GITHUB_OUTPUT
 
-      - name: Configure ClawHub CLI
+      - name: Exchange OIDC token for publish token
+        if: ${{ secrets.clawhub_token == '' && inputs.dry_run != 'true' && steps.oidc.outputs.token != '' }}
+        id: exchange
         run: |
-          mkdir -p ~/.clawhub
-          cat > ~/.clawhub/config << EOF
-          serverUrl=${{ inputs.registry }}
-          token=${{ secrets.clawhub_token }}
-          EOF
-          echo "✓ ClawHub CLI configured"
+          RESPONSE=$(curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"oidcToken\":\"${{ steps.oidc.outputs.token }}\"}" \
+            "${{ inputs.registry }}/api/auth/oidc/token")
+          PUBLISH_TOKEN=$(echo "$RESPONSE" | jq -r '.data.token')
+          echo "publish_token=$PUBLISH_TOKEN" >> $GITHUB_OUTPUT
 
-      - name: Determine source
+      - name: Resolve publish source
         id: source
+        env:
+          INPUT_SOURCE: ${{ inputs.source }}
+          INPUT_REF: ${{ inputs.ref }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
         run: |
-          SOURCE="${{ inputs.source }}"
-          if [[ -z "$SOURCE" ]]; then
-            # 默认使用当前仓库
-            SOURCE="${{ github.repository }}"
-            if [[ -n "${{ inputs.ref }}" ]]; then
-              SOURCE="${SOURCE}@${{ inputs.ref }}"
-            else
-              SOURCE="${SOURCE}@${{ github.sha }}"
-            fi
+          source="${INPUT_SOURCE:-$GITHUB_REPOSITORY}"
+          if [[ -n "$INPUT_REF" && "$source" != *"@"* ]]; then
+            source="${source}@${INPUT_REF}"
           fi
-          echo "source=$SOURCE" >> $GITHUB_OUTPUT
-          echo "✓ Source determined: $SOURCE"
+          echo "source=$source" >> $GITHUB_OUTPUT
 
       - name: Publish package
         id: publish
+        env:
+          SOURCE: ${{ steps.source.outputs.source }}
+          REGISTRY: ${{ inputs.registry }}
+          SITE: ${{ inputs.site }}
+          OWNER: ${{ inputs.owner }}
+          VERSION: ${{ inputs.version }}
+          TAGS: ${{ inputs.tags }}
+          SOURCE_REPO: ${{ inputs.source_repo }}
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          PUBLISH_TOKEN: ${{ secrets.clawhub_token || steps.exchange.outputs.publish_token }}
         run: |
-          SOURCE="${{ steps.source.outputs.source }}"
-          
-          # Build command arguments
-          CMD_ARGS=""
-          
-          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
-            CMD_ARGS="$CMD_ARGS --dry-run"
-          fi
-          
-          if [[ "${{ inputs.json }}" == "true" ]]; then
-            CMD_ARGS="$CMD_ARGS --json"
-          fi
-          
-          if [[ -n "${{ inputs.owner }}" ]]; then
-            CMD_ARGS="$CMD_ARGS --owner=${{ inputs.owner }}"
-          fi
-          
-          if [[ -n "${{ inputs.version }}" ]]; then
-            CMD_ARGS="$CMD_ARGS --version=${{ inputs.version }}"
-          fi
-          
-          CMD_ARGS="$CMD_ARGS --tags=${{ inputs.tags }}"
-          
-          echo "Running: clawhub package publish \"$SOURCE\" $CMD_ARGS"
-          
-          # Execute publish command
-          OUTPUT=$(java -jar cli/target/clawhub-cli-*.jar package publish "$SOURCE" $CMD_ARGS 2>&1)
-          EXIT_CODE=$?
-          
-          echo "$OUTPUT"
-          
-          if [[ $EXIT_CODE -ne 0 ]]; then
-            echo "::error::Publish failed with exit code $EXIT_CODE"
-            exit $EXIT_CODE
-          fi
-          
-          # Store output for next step
-          echo "output<<EOF" >> $GITHUB_OUTPUT
-          echo "$OUTPUT" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          
-          echo "✓ Publish completed"
+          # Build publish payload
+          PAYLOAD=$(jq -n \
+            --arg source "$SOURCE" \
+            --arg registry "$REGISTRY" \
+            --arg site "$SITE" \
+            --arg owner "$OWNER" \
+            --arg version "$VERSION" \
+            --arg tags "$TAGS" \
+            --arg sourceRepo "$SOURCE_REPO" \
+            --arg sourceCommit "$SOURCE_COMMIT" \
+            --arg sourceRef "$SOURCE_REF" \
+            --argjson dryRun "$DRY_RUN" \
+            '{source: $source, registry: $registry, site: $site, owner: $owner, version: $version, tags: $tags, sourceRepo: $sourceRepo, sourceCommit: $sourceCommit, sourceRef: $sourceRef, dryRun: $dryRun}')
 
-      - name: Capture outputs
-        id: capture
-        run: |
-          echo "publish_json<<EOF" >> $GITHUB_OUTPUT
-          echo '${{ steps.publish.outputs.output }}' >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          
-          # Try to extract release_id from JSON output
-          if [[ "${{ inputs.json }}" == "true" ]]; then
-            RELEASE_ID=$(echo '${{ steps.publish.outputs.output }}' | jq -r '.releaseId // empty' 2>/dev/null || echo "")
-            if [[ -n "$RELEASE_ID" ]]; then
-              echo "release_id=$RELEASE_ID" >> $GITHUB_OUTPUT
-              echo "✓ Release ID captured: $RELEASE_ID"
-            fi
-          fi
+          # Call publish API
+          RESPONSE=$(curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $PUBLISH_TOKEN" \
+            -d "$PAYLOAD" \
+            "${REGISTRY}/api/packages/publish")
 
-      - name: Summary
-        if: always()
-        run: |
-          echo "## Package Publish Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Source:** ${{ steps.source.outputs.source }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Dry Run:** ${{ inputs.dry_run }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
-          if [[ -n "${{ steps.capture.outputs.release_id }}" ]]; then
-            echo "- **Release ID:** ${{ steps.capture.outputs.release_id }}" >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "$RESPONSE" | tee publish.json
+          echo "publish_json=$RESPONSE" >> $GITHUB_OUTPUT
+          RELEASE_ID=$(echo "$RESPONSE" | jq -r '.data.releaseId // empty')
+          echo "release_id=$RELEASE_ID" >> $GITHUB_OUTPUT
+
+      - name: Upload publish JSON artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: clawhub-package-publish-json
+          path: publish.json
+          if-no-files-found: error
