@@ -66,6 +66,14 @@ public class SecurityConfig {
     }
 
     @Bean
+    public SecurityFilterChain rateLimitedFilterChain(HttpSecurity http, clawhub.filter.RateLimitFilter rateLimitFilter) throws Exception {
+        http
+            .securityMatcher("/api/**")
+            .addFilterBefore(rateLimitFilter, org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class);
+        return http.build();
+    }
+
+    @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:3000"));

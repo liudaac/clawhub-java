@@ -119,6 +119,12 @@ public class Skill {
     @Column(name = "owner_publisher_id")
     private UUID ownerPublisherId;
 
+    @ElementCollection
+    @CollectionTable(name = "skill_capability_tags", joinColumns = @JoinColumn(name = "skill_id"))
+    @Column(name = "tag")
+    @Builder.Default
+    private java.util.Set<String> capabilityTags = new java.util.HashSet<>();
+
     public enum ModerationStatus {
         ACTIVE, HIDDEN, REMOVED
     }

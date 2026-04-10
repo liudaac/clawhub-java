@@ -26,6 +26,7 @@ export interface Skill {
   latestVersion?: SkillVersion
   badges: Record<string, unknown>
   moderationStatus: 'active' | 'hidden' | 'removed'
+  capabilityTags: string[]
   statsDownloads: number
   statsStars: number
   statsVersions: number

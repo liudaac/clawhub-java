@@ -200,10 +200,10 @@ public class PackageRelease {
     }
 
     public boolean isSecurityClean() {
-        boolean vtClean = vtAnalysis == null || 
-            (vtAnalysis.getMaliciousCount() != null && vtAnalysis.getMaliciousCount() == 0);
-        boolean llmClean = llmAnalysis == null || 
-            !"malicious".equalsIgnoreCase(llmAnalysis.getVerdict());
+        boolean vtClean = vtAnalysis == null ||
+            (vtAnalysis.maliciousCount != null && vtAnalysis.maliciousCount == 0);
+        boolean llmClean = llmAnalysis == null ||
+            !"malicious".equalsIgnoreCase(llmAnalysis.verdict);
         return vtClean && llmClean;
     }
 }

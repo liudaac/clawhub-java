@@ -22,8 +22,6 @@ public interface SkillRepository extends JpaRepository<Skill, UUID> {
 
     Page<Skill> findByOwner(User owner, Pageable pageable);
 
-    Page<Skill> findByModerationStatus(Skill.ModerationStatus status, Pageable pageable);
-
     Page<Skill> findByModerationStatusAndOwner(Skill.ModerationStatus status, User owner, Pageable pageable);
 
     @Query("SELECT s FROM Skill s WHERE s.moderationStatus = 'ACTIVE' " +
@@ -73,4 +71,13 @@ public interface SkillRepository extends JpaRepository<Skill, UUID> {
 
     Page<Skill> findByModerationStatusAndReportCountGreaterThan(
             Skill.ModerationStatus status, int reportCount, Pageable pageable);
+
+    @Query("SELECT DISTINCT s FROM Skill s LEFT JOIN s.capabilityTags t " +
+           "WHERE s.moderationStatus = 'ACTIVE' " +
+           "AND (:nonSuspiciousOnly = false OR s.moderationVerdict IS NULL OR s.moderationVerdict = 'clean') " +
+           "AND (:tags IS NULL OR t IN :tags) " +
+           "ORDER BY s.createdAt DESC")
+    Page<Skill> findPublicByCapabilityTags(@Param("tags") java.util.Set<String> tags,
+                                             @Param("nonSuspiciousOnly") boolean nonSuspiciousOnly,
+                                             Pageable pageable);
 }

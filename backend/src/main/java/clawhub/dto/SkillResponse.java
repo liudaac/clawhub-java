@@ -24,6 +24,7 @@ public class SkillResponse {
     private Map<String, Object> forkOf;
     private Map<String, Object> badges;
     private String moderationStatus;
+    private java.util.Set<String> capabilityTags;
     private Long statsDownloads;
     private Integer statsStars;
     private Integer statsVersions;
@@ -51,6 +52,7 @@ public class SkillResponse {
                 .forkOf(skill.getForkOf())
                 .badges(skill.getBadges())
                 .moderationStatus(skill.getModerationStatus().name().toLowerCase())
+                .capabilityTags(skill.getCapabilityTags())
                 .statsDownloads(skill.getStatsDownloads())
                 .statsStars(skill.getStatsStars())
                 .statsVersions(skill.getStatsVersions())

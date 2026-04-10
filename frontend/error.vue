@@ -34,6 +34,15 @@ const props = defineProps<{
 
 const handleError = () => {
   clearError()
-  navigateTo('/')
+  // Try to recover by reloading the current route
+  const route = useRoute()
+  if (route.path !== '/') {
+    navigateTo(route.path)
+  } else {
+    navigateTo('/')
+  }
 }
+
+// Clear error on mount to allow retry
+clearError()
 </script>

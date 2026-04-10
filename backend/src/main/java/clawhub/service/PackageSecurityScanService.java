@@ -90,7 +90,7 @@ public class PackageSecurityScanService {
         PackageRelease release = releaseRepository.findById(releaseId)
                 .orElseThrow(() -> new IllegalArgumentException("Release not found: " + releaseId));
 
-        log.info("Starting security scan for release: {} (package: {} v{})", 
+        log.info("Starting security scan for release: {} (package: {} v{})",
                 releaseId, release.getPackage_().getName(), release.getVersion());
 
         // Update scan status
@@ -122,11 +122,10 @@ public class PackageSecurityScanService {
             // 4. 使用新的集中化状态解析服务
             // 更新发布版本的数据
             release.setStaticScan(staticScan);
-            release.setVtAnalysis(vtAnalysis.orElse(null));
             release.setLlmAnalysis(llmAnalysis.orElse(null));
 
             // 使用 PackageSecurityService 解析最终状态
-            PackageSecurityService.ScanStatus finalStatus = 
+            PackageSecurityService.ScanStatus finalStatus =
                 packageSecurityService.resolvePackageReleaseScanStatus(release);
 
             // Update package scan status
@@ -139,7 +138,7 @@ public class PackageSecurityScanService {
             // Save release
             PackageRelease saved = releaseRepository.save(release);
 
-            log.info("Security scan completed for release: {} - Verdict: {}", releaseId, verdict);
+            log.info("Security scan completed for release: {} - Status: {}", releaseId, finalStatus);
 
             return saved;
         } catch (Exception e) {

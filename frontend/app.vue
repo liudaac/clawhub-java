@@ -1,9 +1,10 @@
 <template>
   <div class="min-h-screen bg-background text-foreground">
     <AppHeader />
-    <main class="container mx-auto px-4 py-8">
+    <main class="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
       <NuxtPage />
     </main>
+    <Toast />
   </div>
 </template>
 
@@ -36,6 +37,10 @@ onMounted(() => {
   --input: 214.3 31.8% 91.4%;
   --ring: 222.2 84% 4.9%;
   --radius: 0.5rem;
+  --success: 142 76% 36%;
+  --success-foreground: 210 40% 98%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 222.2 47.4% 11.2%;
 }
 
 .dark-mode {
@@ -50,14 +55,18 @@ onMounted(() => {
   --secondary: 217.2 32.6% 17.5%;
   --secondary-foreground: 210 40% 98%;
   --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
+  --muted-foreground: 215 20.2% 70%; /* Increased from 65.1% for better contrast */
   --accent: 217.2 32.6% 17.5%;
   --accent-foreground: 210 40% 98%;
-  --destructive: 0 62.8% 30.6%;
+  --destructive: 0 84.2% 60.2%; /* Brighter red for better visibility */
   --destructive-foreground: 210 40% 98%;
-  --border: 217.2 32.6% 17.5%;
+  --border: 217.2 32.6% 25%; /* Lighter border for better visibility */
   --input: 217.2 32.6% 17.5%;
   --ring: 212.7 26.8% 83.9%;
+  --success: 142 76% 36%;
+  --success-foreground: 210 40% 98%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 222.2 47.4% 11.2%;
 }
 
 * {

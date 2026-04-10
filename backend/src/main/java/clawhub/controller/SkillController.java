@@ -37,14 +37,17 @@ public class SkillController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "desc") String sortDir,
-            @RequestParam(defaultValue = "false") boolean nonSuspiciousOnly) {
-        
-        Sort sort = sortDir.equalsIgnoreCase("asc") ? 
+            @RequestParam(defaultValue = "false") boolean nonSuspiciousOnly,
+            @RequestParam(required = false) java.util.Set<String> capabilityTags) {
+
+        Sort sort = sortDir.equalsIgnoreCase("asc") ?
                 Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
         Pageable pageable = PageRequest.of(page, size, sort);
-        
+
         Page<Skill> skills;
-        if ("downloads".equalsIgnoreCase(sortBy)) {
+        if (capabilityTags != null && !capabilityTags.isEmpty()) {
+            skills = skillService.findPublicSkillsByCapabilityTags(capabilityTags, pageable, nonSuspiciousOnly);
+        } else if ("downloads".equalsIgnoreCase(sortBy)) {
             skills = skillService.findPublicSkillsByDownloads(pageable, nonSuspiciousOnly);
         } else if ("stars".equalsIgnoreCase(sortBy)) {
             skills = skillService.findPublicSkillsByStars(pageable, nonSuspiciousOnly);
@@ -128,6 +131,7 @@ public class SkillController {
                     slug,
                     request.getDisplayName(),
                     request.getSummary(),
+                    request.getCapabilityTags(),
                     currentUser.getId()
             );
             

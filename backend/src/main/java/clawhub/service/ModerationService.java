@@ -39,30 +39,32 @@ public class ModerationService {
     }
 
     @Transactional
-    public Skill hideSkill(UUID skillId, String reason, UUID moderatorId) {
+    public Skill hideSkill(UUID skillId, String reason, String note, UUID moderatorId) {
         Skill skill = skillRepository.findById(skillId)
                 .orElseThrow(() -> new RuntimeException("Skill not found: " + skillId));
 
         skill.setModerationStatus(Skill.ModerationStatus.HIDDEN);
         skill.setModerationReason(reason);
+        skill.setModerationNotes(note);
         skill.setHiddenAt(Instant.now());
         skill.setHiddenBy(User.builder().id(moderatorId).build());
 
-        log.info("Skill {} hidden by moderator {}", skillId, moderatorId);
+        log.info("Skill {} hidden by moderator {} with note: {}", skillId, moderatorId, note);
         return skillRepository.save(skill);
     }
 
     @Transactional
-    public Skill unhideSkill(UUID skillId, UUID moderatorId) {
+    public Skill unhideSkill(UUID skillId, String note, UUID moderatorId) {
         Skill skill = skillRepository.findById(skillId)
                 .orElseThrow(() -> new RuntimeException("Skill not found: " + skillId));
 
         skill.setModerationStatus(Skill.ModerationStatus.ACTIVE);
         skill.setModerationReason(null);
+        skill.setModerationNotes(note);
         skill.setHiddenAt(null);
         skill.setHiddenBy(null);
 
-        log.info("Skill {} unhidden by moderator {}", skillId, moderatorId);
+        log.info("Skill {} unhidden by moderator {} with note: {}", skillId, moderatorId, note);
         return skillRepository.save(skill);
     }
 

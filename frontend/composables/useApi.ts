@@ -3,6 +3,7 @@ import type { ApiResponse } from '~/types'
 export function useApi() {
   const config = useRuntimeConfig()
   const authStore = useAuthStore()
+  const toast = inject('toast') as { warning: (message: string, title?: string) => void }
 
   const api = $fetch.create({
     baseURL: config.public.apiBase,
@@ -23,6 +24,14 @@ export function useApi() {
         authStore.logout()
         navigateTo('/')
       }
+      if (response.status === 429) {
+        const retryAfter = response._data?.retryAfter || 60
+        const message = `Rate limit exceeded. Please try again in ${retryAfter} seconds.`
+        if (toast) {
+          toast.warning(message, 'Too Many Requests')
+        }
+        throw new Error(message)
+      }
     },
   })
 
@@ -32,12 +41,14 @@ export function useApi() {
     logout: () => api<ApiResponse<void>>('/auth/logout', { method: 'POST' }),
 
     // Skills
-    getSkills: (params?: { page?: number; size?: number; sort?: string }) => 
+    getSkills: (params?: { page?: number; size?: number; sort?: string; capabilityTags?: string[] }) => 
       api<ApiResponse<Skill[]>>('/skills', { query: params }),
     getSkill: (slug: string) => 
       api<ApiResponse<Skill>>(`/skills/${slug}`),
     createSkill: (data: { slug: string; displayName: string; summary?: string }) => 
       api<ApiResponse<Skill>>('/skills', { method: 'POST', body: data }),
+    updateSkill: (slug: string, data: { displayName?: string; summary?: string; capabilityTags?: string[] }) =>
+      api<ApiResponse<Skill>>(`/skills/${slug}`, { method: 'PATCH', body: data }),
 
     // Comments
     getComments: (slug: string) => 
@@ -56,5 +67,21 @@ export function useApi() {
     // Search
     search: (q: string, type?: 'skills' | 'souls' | 'all') => 
       api<ApiResponse<unknown>>('/search', { query: { q, type } }),
+
+    // Admin / Moderation
+    getPendingReview: (page?: number, size?: number) =>
+      api<ApiResponse<Skill[]>>(`/admin/moderation/pending`, { query: { page, size } }),
+    getHiddenSkills: (page?: number, size?: number) =>
+      api<ApiResponse<Skill[]>>(`/admin/moderation/hidden`, { query: { page, size } }),
+    hideSkill: (id: string, reason: string, note: string) =>
+      api<ApiResponse<Skill>>(`/admin/skills/${id}/hide`, { 
+        method: 'POST', 
+        body: { reason, note } 
+      }),
+    unhideSkill: (id: string, note: string) =>
+      api<ApiResponse<Skill>>(`/admin/skills/${id}/unhide`, { 
+        method: 'POST', 
+        body: { note } 
+      }),
   }
 }

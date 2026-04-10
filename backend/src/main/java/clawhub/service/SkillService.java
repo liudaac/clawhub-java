@@ -47,6 +47,11 @@ public class SkillService {
     }
 
     @Transactional(readOnly = true)
+    public Page<Skill> findPublicSkillsByCapabilityTags(java.util.Set<String> tags, Pageable pageable, boolean nonSuspiciousOnly) {
+        return skillRepository.findPublicByCapabilityTags(tags, nonSuspiciousOnly, pageable);
+    }
+
+    @Transactional(readOnly = true)
     public Page<Skill> findHighlighted(Pageable pageable) {
         return skillRepository.findHighlighted(pageable);
     }
@@ -100,28 +105,36 @@ public class SkillService {
 
     @Transactional
     public Skill updateSkill(String slug, String displayName, String summary, UUID currentUserId) {
+        return updateSkill(slug, displayName, summary, null, currentUserId);
+    }
+
+    @Transactional
+    public Skill updateSkill(String slug, String displayName, String summary, java.util.Set<String> capabilityTags, UUID currentUserId) {
         Skill skill = skillRepository.findBySlug(slug)
                 .orElseThrow(() -> new RuntimeException("Skill not found: " + slug));
-        
+
         // Check ownership
-        if (!skill.getOwner().getId().equals(currentUserId) && 
+        if (!skill.getOwner().getId().equals(currentUserId) &&
             !skill.getOwner().getRole().equals(User.Role.ADMIN)) {
             throw new RuntimeException("Not authorized to update this skill");
         }
-        
+
         if (displayName != null) {
             skill.setDisplayName(displayName);
         }
         if (summary != null) {
             skill.setSummary(summary);
         }
-        
+        if (capabilityTags != null) {
+            skill.setCapabilityTags(capabilityTags);
+        }
+
         Skill savedSkill = skillRepository.save(skill);
         log.info("Updated skill: {}", slug);
-        
+
         // Broadcast update to subscribed clients
         webSocketHandler.broadcastSkillUpdate(savedSkill);
-        
+
         return savedSkill;
     }
 

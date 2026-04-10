@@ -75,16 +75,21 @@ public class ModerationController {
     @PostMapping("/skills/{id}/hide")
     public ResponseEntity<ApiResponse<SkillResponse>> hideSkill(
             @PathVariable UUID id,
-            @RequestParam String reason,
+            @RequestBody ModerationActionRequest request,
             @CurrentUser User currentUser) {
-        
+
         if (currentUser == null || !currentUser.isModerator()) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(ApiResponse.error("Moderator access required"));
         }
-        
+
+        if (request.getNote() == null || request.getNote().isBlank()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Moderation note is required"));
+        }
+
         try {
-            Skill skill = moderationService.hideSkill(id, reason, currentUser.getId());
+            Skill skill = moderationService.hideSkill(id, request.getReason(), request.getNote(), currentUser.getId());
             return ResponseEntity.ok(ApiResponse.success(SkillResponse.fromEntity(skill), "Skill hidden successfully"));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -95,15 +100,21 @@ public class ModerationController {
     @PostMapping("/skills/{id}/unhide")
     public ResponseEntity<ApiResponse<SkillResponse>> unhideSkill(
             @PathVariable UUID id,
+            @RequestBody ModerationActionRequest request,
             @CurrentUser User currentUser) {
-        
+
         if (currentUser == null || !currentUser.isModerator()) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(ApiResponse.error("Moderator access required"));
         }
-        
+
+        if (request.getNote() == null || request.getNote().isBlank()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Moderation note is required"));
+        }
+
         try {
-            Skill skill = moderationService.unhideSkill(id, currentUser.getId());
+            Skill skill = moderationService.unhideSkill(id, request.getNote(), currentUser.getId());
             return ResponseEntity.ok(ApiResponse.success(SkillResponse.fromEntity(skill), "Skill unhidden successfully"));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
